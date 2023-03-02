@@ -1,0 +1,201 @@
+---
+title: "Interview Analysis in R"
+author: "John Salako"
+date: "2023-02-16"
+output: pdf_document
+---
+
+### GOALS:
+- The Goal of this analysis in R is to see the relevant features that can be used in the  ML model.
+- I used Forward Regression and Lasso to determine the best feature selection to be used
+
+
+#### Reading in the data
+```{r}
+missn_pred = read.table('predictors.csv',header=TRUE, sep=',')
+filled_pred = read.table('complete_pred.csv',header=TRUE, sep=',')
+response = read.table('response.csv',header=TRUE, sep=',')
+# head(missn_pred)
+```
+
+```{r}
+head(filled_pred)
+```
+
+
+**Thresholding the response value to fit the research questions**
+
+```{r}
+res_BA = ifelse(response$yield_bu_acre > 0, 1, 0)
+res_LA = ifelse(response$plantN_lb_acre > 0, 1, 0)
+
+```
+
+#### Adding the Label to the predictor dataset to make one data
+```{r}
+missn_pred['res_BA'] = res_BA
+missn_pred['res_LA'] = res_LA
+# head(missn_pred)
+```
+
+
+```{r}
+filled_pred['res_BA'] = res_BA
+filled_pred['res_LA'] = res_LA
+
+# dropping the X
+filled_pred = filled_pred[-c(1)]
+head(filled_pred)
+```
+
+**NOTE** I could not use the Original (missing value) dataset to test the features because Both Forward Regression Test and Lasso do not deal with missing values. Hence, I used the completed data I filled up using KNN for the subsequent analysis.
+
+
+## Fitting Forward Regression Model to the Data
+
+#### For the yield_bu_acre (Bu/A)
+
+```{r}
+seed = 44581
+tst=sample(1:100,size=100) # using 100 observations for the test
+train = filled_pred[-tst, ]
+test = filled_pred[tst,]
+```
+
+```{r}
+fm0=lm(res_BA~1,data=filled_pred)  # Initializes an initial variable
+fullModel="res_BA ~ year+N_fert_grower+N_fert_reduced+dul_dep+ll15_dep+root_depth+whc+LAI_max + rain_annual+day_sow +swdef_photo_fw+swdef_expan_fw +L1 +day_v5 +sw_dep_v5 +biomass_v5 +surfaceom_wt_v5 + root_wt_v5+lai_v5+ oc_20cm_v5+ oc_40cm_v5+n_20cm_v5 +n_40cm_v5 + n_60cm_v5+n_0_60cm_v5 +n_deep_v5+esw_pct_v5+water_table_v5+sand_40cm+om_40cm+clay_40cm+restriction+rain_1+rain_2+rain_3+rain_4+rain_5+rain_6+tmean_1+tmean_2+tmean_3+tmean_4+tmean_5+tmean_6+rad_1+rad_2+rad_3+rad_4+rad_5+rad_6+Y_corn_lt_avg+lat+long+P"
+
+
+fwd=step(fm0,scope=fullModel,direction='forward',data=filled_pred)
+
+```
+
+#### For the plantN_lb_acre (LB/A)
+```{r}
+fm0=lm(res_LA~1,data=filled_pred)  # Initializes an initial variable
+fullModel="res_LA ~ year+N_fert_grower+N_fert_reduced+dul_dep+ll15_dep+root_depth+whc+LAI_max + rain_annual+day_sow +swdef_photo_fw+swdef_expan_fw +L1 +day_v5 +sw_dep_v5 +biomass_v5 +surfaceom_wt_v5 + root_wt_v5+lai_v5+ oc_20cm_v5+ oc_40cm_v5+n_20cm_v5 +n_40cm_v5 + n_60cm_v5+n_0_60cm_v5 +n_deep_v5+esw_pct_v5+water_table_v5+sand_40cm+om_40cm+clay_40cm+restriction+rain_1+rain_2+rain_3+rain_4+rain_5+rain_6+tmean_1+tmean_2+tmean_3+tmean_4+tmean_5+tmean_6+rad_1+rad_2+rad_3+rad_4+rad_5+rad_6+Y_corn_lt_avg+lat+long+P"
+
+
+fwd=step(fm0,scope=fullModel,direction='forward',data=filled_pred)
+
+```
+
+
+
+## Using LASSO
+
+### Fitting Lasso to the training data
+
+#### For the plantN_lb_acre (LB/A)
+```{r}
+library(glmnet)
+
+# predicting for the training data
+y = train[, 'res_LA']
+X = as.matrix(train[, colnames(train) != 'res_LA' & colnames(train) != 'res_BA'])
+
+fmL = glmnet(y=y, x=X, alpha=1)  # alpha=1 is used to get the lasso
+Bhat = as.matrix(fmL$beta)
+
+```
+
+
+The fmL gives us the coefficients we will need for predictions
+
+**Prediction using the Lasso on the test**
+```{r}
+# squared_correlation of the test
+
+Iter = dim(Bhat)[2]
+sqCor = cbind('Predictor'= c(1:Iter), 'sqcor'=  rep(NA, Iter))
+
+# The actual value for the test data
+y = test$res_LA
+ 
+# extracting predictors
+X_test = as.matrix(test[, colnames(test)!= 'res_LA' & colnames(train) != 'res_BA']) 
+for (i in 1:Iter) {
+  yHat = X_test %*% Bhat[, i]
+  sqCor[i, 2] = cor(y, yHat)^2
+}
+
+# Printing out
+sqCor
+
+```
+### The best prediction accuracy for the Lasso Model for plantN_lb_acre (LB/A)is:
+```{r}
+bestLasso = max(sqCor[-1, 2])
+bestLasso
+
+```
+
+
+
+Visualizing the plots
+```{r}
+plot(sqCor[, 2], type='o');abline(v=which.max(sqCor[, 2]));abline(h=max(sqCor[, 2], na.rm=TRUE))
+```
+```{r}
+
+# Obtaining the predictors with the highest number of correlation
+print(paste("highest index is: ", which.max(sqCor[-1, 2])))
+
+```
+
+
+
+#### For the yield_bu_acre (BA/A)
+```{r}
+# predicting for the training data
+y = train[, 'res_BA']
+X = as.matrix(train[, colnames(train) != 'res_LA' & colnames(train) != 'res_BA'])
+
+fmL = glmnet(y=y, x=X, alpha=1)  # alpha=1 is used to get the lasso
+Bhat = as.matrix(fmL$beta)
+
+```
+
+The fmL gives us the coefficients we will need for predictions
+
+**Prediction using the Lasso on the test**
+```{r}
+# squared_correlation of the test
+
+Iter = dim(Bhat)[2]
+sqCor = cbind('Predictor'= c(1:Iter), 'sqcor'=  rep(NA, Iter))
+
+# The actual value for the test data
+y = test$res_BA
+ 
+# extracting predictors
+X_test = as.matrix(test[, colnames(test)!= 'res_LA' & colnames(train) != 'res_BA']) 
+for (i in 1:Iter) {
+  yHat = X_test %*% Bhat[, i]
+  sqCor[i, 2] = cor(y, yHat)^2
+}
+
+# Printing out
+sqCor
+
+```
+#### The best prediction accuracy for the Lasso Model for yield_bu_acre (BA/A)is:
+```{r}
+bestLasso = max(sqCor[-1, 2])
+bestLasso
+
+```
+
+
+Visualizing the plots
+```{r}
+plot(sqCor[, 2], type='o');abline(v=which.max(sqCor[, 2]));abline(h=max(sqCor[, 2], na.rm=TRUE))
+```
+```{r}
+
+# Obtaining the predictors with the highest number of correlation
+print(paste("highest index is: ", which.max(sqCor[-1, 2])))
+
+```
+
