@@ -31,3 +31,7 @@ visible redundant features and also helped in the data missingness analysis.
 👉👉 The Lasso and Forward Regression methods used were the method I learned in the Statistical Computing Class (STT 802) I took in the Fall Semester of 2022.
 
 Finally, this was one of the most interesting machine-learning projects I have done so far!
+
+**NOTE: ** Most of the color used for the visualization of the data was
+			   the **viridis palette** as it compensates for color blindness and 
+			   accommodates soothing color visualization of data to a wider audience.
