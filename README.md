@@ -1,4 +1,4 @@
-### Dimensionality-Reduction-and-Predicition-Accuracy
+### Dimensionality-Reduction-and-Prediction-Accuracy
 This repository contains a detailed solution to a predictive model I created based on a technical interview.
 
 A decent amount of time was spent on the data analysis regarding the best features to use for the predictions, which led to the optimal predictions of the machine learning problem.
